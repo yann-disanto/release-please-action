@@ -131,6 +131,8 @@ export async function main() {
 
   const manifest = await loadOrBuildManifest(github, inputs);
 
+  core.debug("only:" + inputs.only)
+
   if (inputs.only === 'list-candidate-releases') {
     core.debug('Listing pending releases');
     outputCandidateReleases(await manifest.buildReleases());
