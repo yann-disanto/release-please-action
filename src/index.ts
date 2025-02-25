@@ -74,6 +74,15 @@ function parseInputs(): ActionInputs {
     includeComponentInTag: getOptionalBooleanInput('include-component-in-tag'),
     changelogHost: core.getInput('changelog-host') || DEFAULT_GITHUB_SERVER_URL,
   };
+
+  core.info("only input:");
+  core.info(" - raw input: " + core.getInput('only'));
+  core.info(" - casted input: " + (core.getInput('only') as ActionInputs['only']));
+  core.info(" - skipGitHubRelease: " + skipGitHubRelease);
+  core.info(" - skipGitHubPullRequest: " + skipGitHubPullRequest);
+  core.info(" - final value: " + inputs.only);
+
+
   return inputs;
 }
 
@@ -131,7 +140,7 @@ export async function main() {
 
   const manifest = await loadOrBuildManifest(github, inputs);
 
-  core.debug("only:" + inputs.only)
+  core.debug("only input value: " + inputs.only)
 
   if (inputs.only === 'list-candidate-releases') {
     core.debug('Listing pending releases');
