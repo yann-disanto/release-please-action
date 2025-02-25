@@ -135,6 +135,8 @@ function loadOrBuildManifest(
 
 export async function main() {
   core.info(`Running release-please version: ${VERSION}`)
+  core.debug('parsing inputs...')
+  core.info('parsing inputs...')
   const inputs = parseInputs();
   const github = await getGitHubInstance(inputs);
 
