@@ -61,7 +61,7 @@ inputs:
     default: false
     deprecationMessage: 'Use only=create-github-releases instead.'
   only:
-    description: "one of 'create-github-releases' | 'list-candidate-releases' | 'update-pull-requests' or empty to run all"
+    description: "one of 'create-github-releases' | 'list-candidate-releases' | 'update-pull-requests' | 'list-pull-requests' or empty to run all"
     required: false
   changelog-host:
     description: 'The proto://host where commits live. Default `https://github.com`'

@@ -13,7 +13,15 @@
 // limitations under the License.
 
 import * as core from '@actions/core';
-import {GitHub, Manifest, CreatedRelease, PullRequest, VERSION, type CandidateRelease} from 'release-please';
+import {
+  GitHub,
+  Manifest,
+  CreatedRelease,
+  PullRequest,
+  VERSION,
+  type CandidateRelease,
+  ReleasePullRequest
+} from 'release-please';
 
 const DEFAULT_CONFIG_FILE = 'release-please-config.json';
 const DEFAULT_MANIFEST_FILE = '.release-please-manifest.json';
@@ -39,7 +47,7 @@ interface ActionInputs {
   targetBranch?: string;
   skipGitHubRelease?: boolean;
   skipGitHubPullRequest?: boolean;
-  only?: 'create-github-releases' | 'list-candidate-releases' | 'update-pull-requests';
+  only?: 'create-github-releases' | 'list-candidate-releases' | 'update-pull-requests' | 'list-pull-requests';
   fork?: boolean;
   includeComponentInTag?: boolean;
   changelogHost: string;
@@ -74,14 +82,6 @@ function parseInputs(): ActionInputs {
     includeComponentInTag: getOptionalBooleanInput('include-component-in-tag'),
     changelogHost: core.getInput('changelog-host') || DEFAULT_GITHUB_SERVER_URL,
   };
-
-  core.info("only input:");
-  core.info(" - raw input: " + core.getInput('only'));
-  core.info(" - casted input: " + (core.getInput('only') as ActionInputs['only']));
-  core.info(" - skipGitHubRelease: " + skipGitHubRelease);
-  core.info(" - skipGitHubPullRequest: " + skipGitHubPullRequest);
-  core.info(" - final value: " + inputs.only);
-
 
   return inputs;
 }
@@ -135,18 +135,19 @@ function loadOrBuildManifest(
 
 export async function main() {
   core.info(`Running release-please version: ${VERSION}`)
-  core.debug('parsing inputs...')
-  core.info('parsing inputs...')
   const inputs = parseInputs();
   const github = await getGitHubInstance(inputs);
 
   const manifest = await loadOrBuildManifest(github, inputs);
 
-  core.debug("only input value: " + inputs.only)
-
   if (inputs.only === 'list-candidate-releases') {
     core.debug('Listing pending releases');
     outputCandidateReleases(await manifest.buildReleases());
+  }
+
+  if (inputs.only === 'list-pull-requests') {
+    core.debug('Listing pending pull requests');
+    outputCandidatePRs(await manifest.buildPullRequests());
   }
 
   if (inputs.only === 'create-github-releases' || !inputs.only) {
@@ -256,6 +257,15 @@ function outputCandidateReleases(releases: CandidateRelease[]) {
 function outputPRs(prs: (PullRequest | undefined)[]) {
   prs = prs.filter(pr => pr !== undefined);
   core.setOutput('prs_created', prs.length > 0);
+  if (prs.length) {
+    core.setOutput('pr', prs[0]);
+    core.setOutput('prs', JSON.stringify(prs));
+  }
+}
+
+function outputCandidatePRs(prs: ReleasePullRequest[]) {
+  prs = prs.filter(pr => pr !== undefined);
+  core.setOutput('prs_pending', prs.length > 0);
   if (prs.length) {
     core.setOutput('pr', prs[0]);
     core.setOutput('prs', JSON.stringify(prs));
