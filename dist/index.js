@@ -110623,6 +110623,8 @@ const DEFAULT_GITHUB_API_URL = 'https://api.github.com';
 const DEFAULT_GITHUB_GRAPHQL_URL = 'https://api.github.com';
 const DEFAULT_GITHUB_SERVER_URL = 'https://github.com';
 function parseInputs() {
+    const skipGitHubRelease = getOptionalBooleanInput('skip-github-release');
+    const skipGitHubPullRequest = getOptionalBooleanInput('skip-github-pull-request');
     const inputs = {
         token: core.getInput('token', { required: true }),
         releaseType: getOptionalInput('release-type'),
@@ -110635,12 +110637,24 @@ function parseInputs() {
         githubGraphqlUrl: (core.getInput('github-graphql-url') || '').replace(/\/graphql$/, '') ||
             DEFAULT_GITHUB_GRAPHQL_URL,
         proxyServer: getOptionalInput('proxy-server'),
-        skipGitHubRelease: getOptionalBooleanInput('skip-github-release'),
-        skipGitHubPullRequest: getOptionalBooleanInput('skip-github-pull-request'),
+        only: core.getInput('only') ||
+            (skipGitHubRelease && !skipGitHubPullRequest
+                ? 'update-pull-requests'
+                : !skipGitHubRelease && skipGitHubPullRequest
+                    ? 'create-github-releases'
+                    : skipGitHubRelease && skipGitHubPullRequest
+                        ? 'list-candidate-releases'
+                        : undefined),
         fork: getOptionalBooleanInput('fork'),
         includeComponentInTag: getOptionalBooleanInput('include-component-in-tag'),
         changelogHost: core.getInput('changelog-host') || DEFAULT_GITHUB_SERVER_URL,
     };
+    core.info("only input:");
+    core.info(" - raw input: " + core.getInput('only'));
+    core.info(" - casted input: " + core.getInput('only'));
+    core.info(" - skipGitHubRelease: " + skipGitHubRelease);
+    core.info(" - skipGitHubPullRequest: " + skipGitHubPullRequest);
+    core.info(" - final value: " + inputs.only);
     return inputs;
 }
 function getOptionalInput(name) {
@@ -110674,15 +110688,21 @@ function loadOrBuildManifest(github, inputs) {
 }
 async function main() {
     core.info(`Running release-please version: ${release_please_1.VERSION}`);
+    core.debug('parsing inputs...');
+    core.info('parsing inputs...');
     const inputs = parseInputs();
     const github = await getGitHubInstance(inputs);
-    if (!inputs.skipGitHubRelease) {
-        const manifest = await loadOrBuildManifest(github, inputs);
-        core.debug('Creating releases');
+    const manifest = await loadOrBuildManifest(github, inputs);
+    core.debug("only input value: " + inputs.only);
+    if (inputs.only === 'list-candidate-releases') {
+        core.debug('Listing pending releases');
+        outputCandidateReleases(await manifest.buildReleases());
+    }
+    if (inputs.only === 'create-github-releases' || !inputs.only) {
+        core.debug('Creating github releases');
         outputReleases(await manifest.createReleases());
     }
-    if (!inputs.skipGitHubPullRequest) {
-        const manifest = await loadOrBuildManifest(github, inputs);
+    if (inputs.only === 'update-pull-requests' || !inputs.only) {
         core.debug('Creating pull requests');
         outputPRs(await manifest.createPullRequests());
     }
@@ -110752,6 +110772,34 @@ function outputReleases(releases) {
     // Paths of all releases that were created, so that they can be passed
     // to matrix in next step:
     core.setOutput('paths_released', JSON.stringify(pathsReleased));
+}
+function outputCandidateReleases(releases) {
+    releases = releases.filter(release => release !== undefined);
+    const pathsReleased = [];
+    core.setOutput('releases_pending', releases.length > 0);
+    if (releases.length) {
+        for (const release of releases) {
+            if (!release) {
+                continue;
+            }
+            const path = release.path || '.';
+            if (path) {
+                pathsReleased.push(path);
+                // If the special root release is set (representing project root)
+                // and this is explicitly a manifest release, set the release_created boolean.
+                setPathOutput(path, 'release_pending', true);
+            }
+            if (release.tag) {
+                // Historically tagName was output as tag_name, keep this
+                // consistent to avoid breaking change:
+                setPathOutput(path, 'tag_name', release.tag.toString());
+                setPathOutput(path, 'body', release.notes);
+            }
+        }
+    }
+    // Paths of all releases that were created, so that they can be passed
+    // to matrix in next step:
+    core.setOutput('paths_to_release', JSON.stringify(pathsReleased));
 }
 function outputPRs(prs) {
     prs = prs.filter(pr => pr !== undefined);
